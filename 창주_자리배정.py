@@ -15,19 +15,18 @@ rows = st.number_input("좌석 행 수", min_value=1, value=6)
 cols = st.number_input("좌석 열 수", min_value=1, value=6)
 
 # 좌석 번호 자동 생성
-seat_numbers = [[row*cols + col + 1 for col in range(cols)] for row in range(rows)]
+seat_numbers = [[row * cols + col + 1 for col in range(cols)] for row in range(rows)]
 flat_seats = [seat for row in seat_numbers for seat in row]
 
 st.subheader("좌석 번호 예시")
 st.table(seat_numbers)
 
 # 미사용 좌석 선택
-unused = st.multiselect(
+unused_seats = st.multiselect(
     "사용하지 않을 좌석 선택 (비워둘 좌석)",
     options=flat_seats
 )
-available = [seat for seat in flat_seats if seat not in unused]
-
+available_seats = [seat for seat in flat_seats if seat not in unused_seats]
 
 st.markdown("---")
 
@@ -36,23 +35,23 @@ st.markdown("---")
 # ----------------------------
 st.header("학생: 정보 및 지망 입력")
 
-inpdate = st.text_input("날짜 입력 (yymmdd)")
-stuname = st.text_input("이름 입력")
-stuid = st.text_input("학번 입력 (5자리)")
+input_date = st.text_input("날짜 입력 (yymmdd)")
+student_name = st.text_input("이름 입력")
+student_id = st.text_input("학번 입력 (5자리)")
 
-if inpdate and stuname and stuid:
+if input_date and student_name and student_id:
     st.subheader("1지망, 2지망, 3지망 선택")
     col1, col2, col3 = st.columns(3)
     with col1:
-        first_choice = st.selectbox("1지망", options=available, key="first")
+        first_choice = st.selectbox("1지망", options=available_seats, key="first")
     with col2:
-        second_choice = st.selectbox("2지망", options=available, key="second")
+        second_choice = st.selectbox("2지망", options=available_seats, key="second")
     with col3:
-        third_choice = st.selectbox("3지망", options=available, key="third")
+        third_choice = st.selectbox("3지망", options=available_seats, key="third")
 
     if st.button("지망 제출"):
-        #CSV 파일 이름: 날짜 + 학번 앞3자리 그룹
-        group_key = f"{inpdate}{stuid[:3]}"
+        # CSV 파일 이름: 날짜 + 학번 앞 3자리
+        group_key = f"{input_date}{student_id[:3]}"
         DATA_FILE = f"seat_preferences_{group_key}.csv"
 
         if os.path.exists(DATA_FILE):
@@ -60,21 +59,24 @@ if inpdate and stuname and stuid:
         else:
             df = pd.DataFrame(columns=["날짜", "학번", "학생 이름", "1지망", "2지망", "3지망"])
 
-        if stuname in df["학생 이름"].values:
-            st.warning("이미 제출하셨습니니다.")
+        if student_name in df["학생 이름"].values:
+            st.warning("이미 제출하셨습니다.")
         else:
             new_row = {
-                "날짜": inpdate,
-                "학번": stuid,
-                "학생 이름": stuname,
+                "날짜": input_date,
+                "학번": student_id,
+                "학생 이름": student_name,
                 "1지망": first_choice,
                 "2지망": second_choice,
                 "3지망": third_choice
             }
             df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
             df.to_csv(DATA_FILE, index=False)
-            st.success(f"{stuname}님의 지망좌석이 저장되었습니다")
-            #st.info(f"데이터는 {DATA_FILE}에 저장됩니다. 다른 학생들은 볼 수 없습니다.")
+            st.success(f"{student_name}님의 지망좌석이 저장되었습니다 ✅")
+
+        # 제출자 명단 공개 (학생도 볼 수 있음)
+        st.subheader("현재까지 제출자 명단")
+        st.write(df["학생 이름"].tolist())
 
 st.markdown("---")
 
@@ -83,7 +85,7 @@ st.markdown("---")
 # ----------------------------
 st.header("관리자: 자리 배정 실행")
 
-selected_group = st.text_input("배정할 그룹 입력 (yymmdd학년반반, 예: 251119210 ->25년11월19일2학년애반반)")
+selected_group = st.text_input("배정할 그룹 입력 (날짜+학번 앞3자리, 예: 251119210)")
 
 if st.button("자리 배정 실행"):
     DATA_FILE = f"seat_preferences_{selected_group}.csv"
@@ -91,8 +93,11 @@ if st.button("자리 배정 실행"):
         df = pd.read_csv(DATA_FILE)
         all_students = df["학생 이름"].tolist()
         preferences = {row["학생 이름"]: [row["1지망"], row["2지망"], row["3지망"]] for _, row in df.iterrows()}
-        seats_copy = available.copy()
+        seats_copy = available_seats.copy()
         assigned_seats = {}
+
+        if len(all_students) > len(seats_copy):
+            st.warning("학생 수가 좌석 수보다 많습니다! 일부 학생은 배정되지 않을 수 있습니다.")
 
         # 1~3지망 순서대로 배정
         for priority in range(3):
@@ -102,31 +107,30 @@ if st.button("자리 배정 실행"):
                     continue
                 if len(preferences[student]) > priority:
                     choice = preferences[student][priority]
-                    if choice in available:
+                    if choice in seats_copy:
                         seat_and_students.setdefault(choice, []).append(student)
             for seat, students_who_want in seat_and_students.items():
                 chosen_student = random.choice(students_who_want)
                 assigned_seats[chosen_student] = seat
-                available.remove(seat)
+                seats_copy.remove(seat)
 
         # 남은 학생 랜덤 배정
         for student in all_students:
-            if student not in assigned_seats:
-                seat = random.choice(available)
+            if student not in assigned_seats and seats_copy:
+                seat = random.choice(seats_copy)
                 assigned_seats[student] = seat
-                available.remove(seat)
+                seats_copy.remove(seat)
 
         # 결과 DataFrame 생성
         result_df = df.copy()
-        result_df["배정 좌석"] = result_df["학생"].map(assigned_seats)
+        result_df["배정 좌석"] = result_df["학생 이름"].map(assigned_seats)
+
         st.subheader(f"{selected_group} 그룹 자리 배정 결과")
         st.dataframe(result_df)
 
-         # 제출자 이름 확인
+        # 제출자 명단
         st.subheader("제출자 명단")
         st.write(all_students)
 
     else:
         st.warning(f"{selected_group} 그룹 데이터가 존재하지 않습니다. 먼저 학생들의 지망을 제출받으세요.")
-        st.warning(f"{selected_group} 그룹 데이터가 존재하지 않습니다. 먼저 학생들의 지망을 제출받으세요.")
-
