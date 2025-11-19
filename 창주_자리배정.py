@@ -11,8 +11,8 @@ st.title("🪑 반별 자리 배정 시스템")
 # ----------------------------
 st.header("관리자: 좌석 행×열 설정")
 
-rows = st.number_input("좌석 행 수", min_value=1, value=4)
-cols = st.number_input("좌석 열 수", min_value=1, value=8)
+rows = st.number_input("좌석 행 수", min_value=1, value=6)
+cols = st.number_input("좌석 열 수", min_value=1, value=6)
 
 # 좌석 번호 자동 생성
 seat_numbers = [[row*cols + col + 1 for col in range(cols)] for row in range(rows)]
@@ -21,48 +21,52 @@ flat_seats = [seat for row in seat_numbers for seat in row]
 st.subheader("좌석 번호 예시")
 st.table(seat_numbers)
 
+# 미사용 좌석 선택
+unused_seats = st.multiselect(
+    "사용하지 않을 좌석 선택 (비워둘 좌석)",
+    options=flat_seats
+)
+available_seats = [seat for seat in flat_seats if seat not in unused_seats]
+
+
 st.markdown("---")
 
 # ----------------------------
 # 2️⃣ 학생 지망 입력
 # ----------------------------
-st.header("학생: PIN과 지망 입력")
+st.header("학생: 정보 및 지망 입력")
 
-pin = st.text_input("PIN 입력 (예: yymmdd학년반 → 2511101A)")
-student_name = st.text_input("학생 이름 입력")
+date_input = st.text_input("날짜 입력 (yymmdd)")
+student_name = st.text_input("이름 입력")
+student_id = st.text_input("학번 입력 (5자리)")
 
-if pin and student_name:
-    try:
-        grade = pin[6]
-        class_name = pin[7].upper()
-        DATA_FILE = f"seat_preferences_{class_name}.csv"
-    except:
-        st.warning("PIN 형식이 잘못되었습니다. 예: 2511101A")
-        st.stop()
-    
+if date_input and student_name and student_id:
     st.subheader("1지망, 2지망, 3지망 선택")
     col1, col2, col3 = st.columns(3)
     with col1:
-        first_choice = st.selectbox("1지망", options=flat_seats, key="first")
+        first_choice = st.selectbox("1지망", options=available_seats, key="first")
     with col2:
-        second_choice = st.selectbox("2지망", options=flat_seats, key="second")
+        second_choice = st.selectbox("2지망", options=available_seats, key="second")
     with col3:
-        third_choice = st.selectbox("3지망", options=flat_seats, key="third")
+        third_choice = st.selectbox("3지망", options=available_seats, key="third")
 
     if st.button("지망 제출"):
-        # CSV 불러오기 또는 새로 생성
+        #CSV 파일 이름: 날짜 + 학번 앞2자리 그룹
+        group_key = f"{date_input}{student_id[:2]}"
+        DATA_FILE = f"seat_preferences_{group_key}.csv"
+
         if os.path.exists(DATA_FILE):
             df = pd.read_csv(DATA_FILE)
         else:
-            df = pd.DataFrame(columns=["PIN", "학생", "1지망", "2지망", "3지망"])
+            df = pd.DataFrame(columns=["날짜", "학번", "학생 이름", "1지망", "2지망", "3지망"])
 
-        # 중복 제출 방지
-        if student_name in df["학생"].values:
+        if student_name in df["학생 이름"].values:
             st.warning("이미 제출한 학생입니다.")
         else:
             new_row = {
-                "PIN": pin,
-                "학생": student_name,
+                "날짜": date_input,
+                "학번": student_id,
+                "학생 이름": student_name,
                 "1지망": first_choice,
                 "2지망": second_choice,
                 "3지망": third_choice
@@ -79,16 +83,20 @@ st.markdown("---")
 # ----------------------------
 st.header("관리자: 자리 배정 실행")
 
-selected_class = st.text_input("배정할 반 입력 (예: A)")
+selected_group = st.text_input("배정할 그룹 입력 (날짜+학번 앞2자리, 예: 25112121)")
 
 if st.button("자리 배정 실행"):
-    DATA_FILE = f"seat_preferences_{selected_class.upper()}.csv"
+    DATA_FILE = f"seat_preferences_{selected_group}.csv"
     if os.path.exists(DATA_FILE):
         df = pd.read_csv(DATA_FILE)
-        all_students = df["학생"].tolist()
-        preferences = {row["학생"]: [row["1지망"], row["2지망"], row["3지망"]] for _, row in df.iterrows()}
-        available_seats = flat_seats.copy()
+        all_students = df["학생 이름"].tolist()
+        preferences = {row["학생 이름"]: [row["1지망"], row["2지망"], row["3지망"]] for _, row in df.iterrows()}
+        seats_copy = available_seats.copy()
         assigned_seats = {}
+
+        if len(all_students) > len(seats_copy):
+            st.warning("학생 수가 좌석 수보다 많습니다! 일부 학생은 배정되지 않을 수 있습니다.")
+
 
         # 1~3지망 순서대로 배정
         for priority in range(3):
@@ -115,16 +123,12 @@ if st.button("자리 배정 실행"):
         # 결과 DataFrame 생성
         result_df = df.copy()
         result_df["배정 좌석"] = result_df["학생"].map(assigned_seats)
-        st.subheader(f"{selected_class.upper()}반 자리 배정 결과")
+         st.subheader(f"{selected_group} 그룹 자리 배정 결과")
         st.dataframe(result_df)
 
-        # 엑셀 다운로드
-        result_df.to_excel(f"assigned_seats_{selected_class.upper()}.xlsx", index=False)
-        st.download_button(
-            label="📥 배정 결과 엑셀 다운로드",
-            data=open(f"assigned_seats_{selected_class.upper()}.xlsx", "rb").read(),
-            file_name=f"assigned_seats_{selected_class.upper()}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+         # 제출자 이름 확인
+        st.subheader("제출자 명단")
+        st.write(all_students)
+
     else:
-        st.warning(f"{selected_class.upper()}반 데이터가 존재하지 않습니다. 먼저 학생들의 지망을 제출받으세요.")
+        st.warning(f"{selected_group} 그룹 데이터가 존재하지 않습니다. 먼저 학생들의 지망을 제출받으세요.")
