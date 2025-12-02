@@ -75,4 +75,50 @@ with tab1:
 with tab2:
     st.header("관리자: 제출자 확인 및 자리 배정")
 
-    admin_grade = s_
+    admin_grade = st.number_input("학년 입력", min_value=1, max_value=6, step=1)
+    admin_class = st.number_input("반 입력", min_value=1, max_value=99, step=1)
+
+    class_key = f"{admin_grade}-{admin_class:02d}"
+
+    if class_key in st.session_state.all_data and st.session_state.all_data[class_key]:
+        st.subheader("제출자 명단")
+        submitted_students = [d["학생"] for d in st.session_state.all_data[class_key]]
+        st.write(submitted_students)
+
+        if st.button("자리 배정 실행"):
+            all_students = submitted_students.copy()
+            preferences = {d["학생"]: [d["1지망"], d["2지망"], d["3지망"]] for d in st.session_state.all_data[class_key]}
+
+            # 좌석 수: 제출자 수만큼
+            available_seats = list(range(1, len(all_students)+1))
+            assigned_seats: Dict[str, int] = {}
+
+            # 1~3지망 순서대로 배정
+            for priority in range(3):
+                seat_and_students: Dict[int, List[str]] = {}
+                for student in all_students:
+                    if student in assigned_seats:
+                        continue
+                    if len(preferences[student]) > priority:
+                        choice = preferences[student][priority]
+                        if choice in available_seats:
+                            seat_and_students.setdefault(choice, []).append(student)
+                for seat, students_who_want in seat_and_students.items():
+                    chosen_student = random.choice(students_who_want)
+                    assigned_seats[chosen_student] = seat
+                    available_seats.remove(seat)
+
+            # 남은 학생 랜덤 배정
+            for student in all_students:
+                if student not in assigned_seats:
+                    seat = random.choice(available_seats)
+                    assigned_seats[student] = seat
+                    available_seats.remove(seat)
+
+            # 결과 표시
+            st.subheader(f"{admin_grade}-{admin_class:02d}반 배정 결과")
+            result_list = [{"학생": name, "배정석": seat} for name, seat in assigned_seats.items()]
+            st.table(result_list)
+
+    else:
+        st.warning(f"{admin_grade}-{admin_class:02d}반 제출자가 없습니다.")
