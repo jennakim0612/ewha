@@ -1,78 +1,105 @@
 import streamlit as st
 import random
+from typing import Dict, List
 
 st.set_page_config(page_title="🪑 반별 자리 배정 시스템", layout="wide")
 st.title("🪑 반별 자리 배정 시스템")
 
 # ----------------------------
-# 1️⃣ 총 학생 수 입력 (좌석 수 = 학생 수)
+# 세션 상태 초기화
 # ----------------------------
-st.header("총 학생 수 설정")
-num_students = st.number_input("총 학생 수", min_value=1, value=10, step=1)
-total_seats = num_students  # 좌석 수 = 학생 수
-flat_seats = list(range(1, total_seats + 1))
-
-st.markdown("---")
+if "all_data" not in st.session_state:
+    st.session_state.all_data = {}  # {"학년-반": [{학생, 1지망,2지망,3지망}, ...]}
 
 # ----------------------------
-# 2️⃣ 학생 이름 및 3지망 입력
+# 탭 생성
 # ----------------------------
-st.header("학생 이름 및 3지망 입력")
+tab1, tab2 = st.tabs(["학생 제출", "관리자"])
 
-students_list = []
-student_prefs = {}
+# ----------------------------
+# 1️⃣ 학생 제출
+# ----------------------------
+with tab1:
+    st.header("학생: 학년, 반, 이름, 3지망 제출")
 
-for i in range(num_students):
-    st.subheader(f"학생 {i+1}")
-    name = st.text_input(f"학생 이름", key=f"name_{i}")
-    if not name:
-        name = f"학생{i+1}"
-    students_list.append(name)
+    grade = st.number_input("학년 입력 (예: 2)", min_value=1, max_value=6, step=1)
+    class_num = st.number_input("반 입력 (예: 9)", min_value=1, step=1)
+    student_name = st.text_input("학생 이름 입력")
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        first_choice = st.selectbox("1지망", options=flat_seats, key=f"first_{i}")
+        first_choice = st.number_input("1지망", min_value=1, value=1, step=1)
     with col2:
-        second_choice = st.selectbox("2지망", options=flat_seats, key=f"second_{i}")
+        second_choice = st.number_input("2지망", min_value=1, value=2, step=1)
     with col3:
-        third_choice = st.selectbox("3지망", options=flat_seats, key=f"third_{i}")
+        third_choice = st.number_input("3지망", min_value=1, value=3, step=1)
 
-    student_prefs[name] = [first_choice, second_choice, third_choice]
+    if st.button("제출"):
+        if grade and class_num and student_name:
+            class_key = f"{grade}-{class_num:02d}"  # 예: 2-09
+            if class_key not in st.session_state.all_data:
+                st.session_state.all_data[class_key] = []
 
-st.markdown("---")
+            # 중복 제출 방지
+            names_in_class = [d["학생"] for d in st.session_state.all_data[class_key]]
+            if student_name in names_in_class:
+                st.warning("이미 제출하셨습니다.")
+            else:
+                st.session_state.all_data[class_key].append({
+                    "학생": student_name,
+                    "1지망": first_choice,
+                    "2지망": second_choice,
+                    "3지망": third_choice
+                })
+                st.success(f"{student_name}님의 지망이 제출되었습니다 ✅")
 
 # ----------------------------
-# 3️⃣ 자리 배정 실행
+# 2️⃣ 관리자 페이지
 # ----------------------------
-st.header("자리 배정 실행")
+with tab2:
+    st.header("관리자: 제출자 확인 및 자리 배정")
 
-if st.button("자리 배정"):
-    available_seats = flat_seats.copy()
-    assigned_seats = {}
+    admin_grade = st.number_input("학년 입력", min_value=1, max_value=6, step=1, key="admin_grade")
+    admin_class = st.number_input("반 입력", min_value=1, step=1, key="admin_class")
+    class_key = f"{admin_grade}-{admin_class:02d}"
 
-    # 1~3지망 순서대로 배정
-    for priority in range(3):
-        seat_and_students = {}
-        for student in students_list:
-            if student in assigned_seats:
-                continue
-            if len(student_prefs[student]) > priority:
-                choice = student_prefs[student][priority]
-                if choice in available_seats:
-                    seat_and_students.setdefault(choice, []).append(student)
-        for seat, students_who_want in seat_and_students.items():
-            chosen_student = random.choice(students_who_want)
-            assigned_seats[chosen_student] = seat
-            available_seats.remove(seat)
+    if class_key in st.session_state.all_data:
+        all_students_data = st.session_state.all_data[class_key]
+        all_students = [d["학생"] for d in all_students_data]
+        submitted_names = all_students
+        st.subheader("제출자 명단")
+        st.write(submitted_names)
 
-    # 남은 학생 랜덤 배정
-    for student in students_list:
-        if student not in assigned_seats:
-            seat = random.choice(available_seats)
-            assigned_seats[student] = seat
-            available_seats.remove(seat)
+        if st.button("자리 배정"):
+            student_prefs: Dict[str, List[int]] = {d["학생"]: [d["1지망"], d["2지망"], d["3지망"]] for d in all_students_data}
+            available_seats: List[int] = list(range(1, len(all_students) + 1))
+            assigned_seats: Dict[str, int] = {}
 
-    # 결과 출력
-    st.subheader("배정 결과")
-    for student in students_list:
-        st.write(f"{student}: {assigned_seats[student]}번")
+            # 1~3지망 순서대로 배정
+            for priority in range(3):
+                hubo: Dict[int, List[str]] = {}
+                for student in all_students:
+                    if student in assigned_seats:
+                        continue
+                    if len(student_prefs[student]) > priority:
+                        target_seat = student_prefs[student][priority]
+                        if target_seat in available_seats:
+                            hubo.setdefault(target_seat, []).append(student)
+                for seat, hubo_stu in hubo.items():
+                    chosen_student = random.choice(hubo_stu)
+                    assigned_seats[chosen_student] = seat
+                    available_seats.remove(seat)
+
+            # 남은 학생 랜덤 배정
+            for student in all_students:
+                if student not in assigned_seats:
+                    target_seat = random.choice(available_seats)
+                    assigned_seats[student] = target_seat
+                    available_seats.remove(target_seat)
+
+            # 결과 출력
+            st.subheader(f"{class_key} 반 배정 결과")
+            for student in all_students:
+                st.write(f"{student}: {assigned_seats[student]}번")
+    else:
+        st.info("해당 학년반 제출 데이터가 없습니다.")
