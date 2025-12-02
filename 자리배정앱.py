@@ -2,19 +2,19 @@ import streamlit as st
 import random
 from typing import Dict, List
 
-st.set_page_config(page_title="🪑 자리 배정 시스템", layout="wide")
-st.title("🪑 자리 배정 시스템")
+st.set_page_config(page_title="🪑 3지망 자리 배정 시스템", layout="wide")
+st.title("🪑 3지망 자리 배정 시스템")
 
 # ----------------------------
 # 1️⃣ 학생용 페이지
 # ----------------------------
-st.header("학생용: 학년·반·이름·희망 좌석 입력")
+st.header("학생용 | 학년·반·이름·희망 좌석 입력")
 
 student_grade = st.number_input("학년 입력 (예: 2)", min_value=1, max_value=6, step=1, key="stu_grade")
-student_class = st.number_input("반 입력 (예: 9)", min_value=1, max_value=99, step=1, key="stu_class")
+student_class = st.number_input("반 입력 (예: 1<-인반)", min_value=1, max_value=99, step=1, key="stu_class")
 student_name = st.text_input("학생 이름 입력", key="stu_name")
 
-st.subheader("희망 좌석 입력 (키보드로 직접 숫자 입력)")
+st.subheader("희망 좌석번호 입력 (예: 2)")
 
 col1, col2, col3 = st.columns(3)
 with col1:
@@ -24,7 +24,7 @@ with col2:
 with col3:
     third_choice_str = st.text_input("3지망", key="third_choice")
 
-if st.button("지망 제출"):
+if st.button("지망좌석 제출"):
     if not student_name:
         st.warning("학생 이름을 입력해주세요.")
     else:
@@ -52,7 +52,7 @@ st.markdown("---")
 # ----------------------------
 # 2️⃣ 관리자용 페이지
 # ----------------------------
-st.header("관리자용: 학년·반 입력 후 제출자 확인 및 자리 배정")
+st.header("관리자용 | 제출자 확인 및 자리 배정")
 
 admin_grade = st.number_input("학년 입력", min_value=1, max_value=6, step=1, key="admin_grade")
 admin_class = st.number_input("반 입력", min_value=1, max_value=99, step=1, key="admin_class")
@@ -108,3 +108,4 @@ if st.button("자리 배정 실행"):
             st.write(f"{student}: {assigned_seats[student]}번")
     else:
         st.info("제출자가 없습니다.")
+
