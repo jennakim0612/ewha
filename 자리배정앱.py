@@ -1,15 +1,35 @@
+import streamlit as st
+import random
+from typing import Dict, List
+
+st.set_page_config(page_title="🪑 반별 자리 배정 시스템", layout="wide")
+st.title("🪑 반별 자리 배정 시스템")
+
+# ----------------------------
+# 세션 상태 초기화
+# ----------------------------
+if "all_data" not in st.session_state:
+    st.session_state.all_data = {}  # 학년-반 별 학생 지망 데이터 저장
+
+# ----------------------------
+# 탭 생성
+# ----------------------------
+tab1, tab2 = st.tabs(["학생 제출", "관리자"])
+
+# ----------------------------
+# 1️⃣ 학생 제출 탭
+# ----------------------------
 with tab1:
     st.header("학생: 학년, 반, 이름, 3지망 제출")
 
-    # 학년은 키보드로 입력
+    # 학년: 키보드 입력
     grade = st.text_input("학년 입력 (예: 2)")
     try:
         grade_int = int(grade)
     except:
-        st.warning("학년은 숫자로 입력해주세요.")
-        st.stop()
+        grade_int = None
 
-    # 반은 +- 조절
+    # 반: +- 조절
     class_num = st.number_input("반 입력", min_value=1, max_value=99, step=1)
 
     student_name = st.text_input("학생 이름 입력")
@@ -48,3 +68,11 @@ with tab1:
             else:
                 st.session_state.all_data[class_key].append(new_entry)
                 st.success(f"{student_name}님의 지망이 제출되었습니다 ✅")
+
+# ----------------------------
+# 2️⃣ 관리자 탭
+# ----------------------------
+with tab2:
+    st.header("관리자: 제출자 확인 및 자리 배정")
+
+    admin_grade = s_
