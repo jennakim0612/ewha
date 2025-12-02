@@ -2,58 +2,81 @@ import streamlit as st
 import random
 from typing import Dict, List
 
-st.set_page_config(page_title="🪑 반별 자리 배정 시스템", layout="wide")
-st.title("🪑 반별 자리 배정 시스템")
+st.set_page_config(page_title="🪑 자리 배정 시스템", layout="wide")
+st.title("🪑 자리 배정 시스템")
 
 # ----------------------------
 # 1️⃣ 학생용 페이지
 # ----------------------------
-st.header("학생 페이지: 학년, 반, 이름, 희망 좌석 입력")
+st.header("학생용: 학년·반·이름·희망 좌석 입력")
 
-with st.form("student_form"):
-    student_grade = st.number_input("학년 입력", min_value=1, max_value=3, step=1, key="student_grade")
-    student_class = st.number_input("반 입력", min_value=1, max_value=99, step=1, key="student_class")
-    student_name = st.text_input("학생 이름 입력", key="student_name")
-    first_choice = st.number_input("1지망 좌석 번호 입력", min_value=1, step=1, key="first_choice")
-    second_choice = st.number_input("2지망 좌석 번호 입력", min_value=1, step=1, key="second_choice")
-    third_choice = st.number_input("3지망 좌석 번호 입력", min_value=1, step=1, key="third_choice")
-    
-    submitted = st.form_submit_button("지망 제출")
+student_grade = st.number_input("학년 입력 (예: 2)", min_value=1, max_value=6, step=1, key="stu_grade")
+student_class = st.number_input("반 입력 (예: 9)", min_value=1, max_value=99, step=1, key="stu_class")
+student_name = st.text_input("학생 이름 입력", key="stu_name")
 
-    if submitted:
-        class_key = f"{student_grade:1d}{student_class:02d}"
-        if "seat_data" not in st.session_state:
-            st.session_state.seat_data = {}
-        if class_key not in st.session_state.seat_data:
-            st.session_state.seat_data[class_key] = {}
-        
-        # 이전 제출한 학생은 덮어쓰기
-        st.session_state.seat_data[class_key][student_name] = [
-            first_choice, second_choice, third_choice
-        ]
-        st.success(f"{student_name}님의 지망이 저장되었습니다 ✅")
+st.subheader("희망 좌석 입력 (키보드로 직접 숫자 입력)")
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    first_choice_str = st.text_input("1지망", key="first_choice")
+with col2:
+    second_choice_str = st.text_input("2지망", key="second_choice")
+with col3:
+    third_choice_str = st.text_input("3지망", key="third_choice")
+
+if st.button("지망 제출"):
+    if not student_name:
+        st.warning("학생 이름을 입력해주세요.")
+    else:
+        try:
+            first_choice = int(first_choice_str)
+            second_choice = int(second_choice_str)
+            third_choice = int(third_choice_str)
+            seat_list = [first_choice, second_choice, third_choice]
+
+            # 세션 상태에 저장
+            class_key = f"{student_grade:1d}{student_class:02d}"
+            if "seat_data" not in st.session_state:
+                st.session_state.seat_data = {}
+            if class_key not in st.session_state.seat_data:
+                st.session_state.seat_data[class_key] = {}
+            # 이전 제출값 덮어쓰기
+            st.session_state.seat_data[class_key][student_name] = seat_list
+
+            st.success(f"{student_name}님의 지망이 저장되었습니다 ✅")
+        except ValueError:
+            st.warning("각 지망은 숫자로 입력해야 합니다.")
 
 st.markdown("---")
 
 # ----------------------------
 # 2️⃣ 관리자용 페이지
 # ----------------------------
-st.header("관리자 페이지: 제출자 확인 및 자리 배정")
+st.header("관리자용: 학년·반 입력 후 제출자 확인 및 자리 배정")
 
-with st.form("admin_form"):
-    admin_grade = st.number_input("학년 입력", min_value=1, max_value=3, step=1, key="admin_grade")
-    admin_class = st.number_input("반 입력", min_value=1, max_value=99, step=1, key="admin_class")
-    total_seats = st.number_input("총 좌석 수 입력", min_value=1, step=1, key="total_seats")
-    
-    assign_button = st.form_submit_button("자리 배정 실행")
+admin_grade = st.number_input("학년 입력", min_value=1, max_value=6, step=1, key="admin_grade")
+admin_class = st.number_input("반 입력", min_value=1, max_value=99, step=1, key="admin_class")
+class_key = f"{admin_grade:1d}{admin_class:02d}"
 
-if assign_button:
-    class_key = f"{admin_grade:1d}{admin_class:02d}"
-    if "seat_data" not in st.session_state or class_key not in st.session_state.seat_data:
-        st.warning("해당 반의 제출 데이터가 없습니다. 학생들이 지망을 제출했는지 확인하세요.")
+if st.button("제출자 확인"):
+    if "seat_data" in st.session_state and class_key in st.session_state.seat_data:
+        submitted_students = list(st.session_state.seat_data[class_key].keys())
+        st.write(f"{admin_grade}학년 {admin_class}반 제출자 명단:")
+        st.write(submitted_students)
     else:
+        st.info("제출자가 없습니다.")
+
+st.markdown("---")
+
+# ----------------------------
+# 3️⃣ 자리 배정
+# ----------------------------
+if st.button("자리 배정 실행"):
+    if "seat_data" in st.session_state and class_key in st.session_state.seat_data:
+        all_students = list(st.session_state.seat_data[class_key].keys())
         preferences = st.session_state.seat_data[class_key]
-        all_students = list(preferences.keys())
+
+        total_seats = len(all_students)
         available_seats = list(range(1, total_seats + 1))
         assigned_seats: Dict[str, int] = {}
 
@@ -79,11 +102,9 @@ if assign_button:
                 assigned_seats[student] = seat
                 available_seats.remove(seat)
 
-        # 제출자 이름 표시
-        st.subheader(f"{admin_grade}학년 {admin_class:02d}반 제출자 명단")
-        st.write(all_students)
-
-        # 배정 결과 출력
-        st.subheader("배정 결과")
+        # 결과 출력
+        st.subheader(f"{admin_grade}학년 {admin_class}반 배정 결과")
         for student in all_students:
             st.write(f"{student}: {assigned_seats[student]}번")
+    else:
+        st.info("제출자가 없습니다.")
